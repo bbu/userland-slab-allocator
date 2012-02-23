@@ -1,0 +1,2 @@
+Carefully optimised slab allocator for userspace. Relies on anonymous mmap(2) 
+page allocations, or occassionally on posix_memalign(3) for larger objects.
