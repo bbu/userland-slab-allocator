@@ -1,3 +1,5 @@
+/* ref: https://github.com/bbu/userland-slab-allocator */
+
 #ifndef __GNUC__
 # error Can be compiled only with GCC.
 #endif

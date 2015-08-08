@@ -1,3 +1,5 @@
+/* ref: https://github.com/bbu/userland-slab-allocator */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
