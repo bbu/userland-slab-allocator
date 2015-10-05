@@ -45,8 +45,7 @@
 size_t slab_pagesize;
 
 #ifndef NDEBUG
-static int
-slab_is_valid(struct slab_chain *sch)
+static int slab_is_valid(const struct slab_chain *const sch)
 {
     assert(POWEROF2(slab_pagesize));
     assert(POWEROF2(sch->slabsize));
@@ -64,10 +63,11 @@ slab_is_valid(struct slab_chain *sch)
     assert(sch->initial_slotmask == (sch->empty_slotmask ^ SLOTS_FIRST));
     assert(sch->alignment_mask == ~(sch->slabsize - 1));
 
-    struct slab_header *heads[] = {sch->full, sch->empty, sch->partial};
+    const struct slab_header *const heads[] =
+        {sch->full, sch->empty, sch->partial};
 
     for (size_t head = 0; head < 3; ++head) {
-        struct slab_header *prev = NULL, *slab;
+        const struct slab_header *prev = NULL, *slab;
 
         for (slab = heads[head]; slab != NULL; slab = slab->next) {
             if (prev == NULL)
@@ -113,8 +113,7 @@ slab_is_valid(struct slab_chain *sch)
 }
 #endif
 
-void
-slab_init(struct slab_chain *sch, size_t itemsize)
+void slab_init(struct slab_chain *const sch, const size_t itemsize)
 {
     assert(sch != NULL);
     assert(itemsize >= 1 && itemsize <= SIZE_MAX);
@@ -122,20 +121,19 @@ slab_init(struct slab_chain *sch, size_t itemsize)
 
     sch->itemsize = itemsize;
 
-    size_t data_offset = offsetof(struct slab_header, data);
-    size_t least_slabsize = data_offset + 64 * sch->itemsize;
+    const size_t data_offset = offsetof(struct slab_header, data);
+    const size_t least_slabsize = data_offset + 64 * sch->itemsize;
     sch->slabsize = (size_t) 1 << (size_t) ceil(log2(least_slabsize));
     sch->itemcount = 64;
 
     if (sch->slabsize - least_slabsize != 0) {
-        size_t shrinked_slabsize = sch->slabsize >> 1;
+        const size_t shrinked_slabsize = sch->slabsize >> 1;
 
         if (data_offset < shrinked_slabsize &&
             shrinked_slabsize - data_offset >= 2 * sch->itemsize) {
 
             sch->slabsize = shrinked_slabsize;
-            sch->itemcount = (shrinked_slabsize -
-                data_offset) / sch->itemsize;
+            sch->itemcount = (shrinked_slabsize - data_offset) / sch->itemsize;
         }
     }
 
@@ -150,20 +148,19 @@ slab_init(struct slab_chain *sch, size_t itemsize)
     assert(slab_is_valid(sch));
 }
 
-void *
-slab_alloc(struct slab_chain *sch)
+void *slab_alloc(struct slab_chain *const sch)
 {
     assert(sch != NULL);
     assert(slab_is_valid(sch));
 
     if (LIKELY(sch->partial != NULL)) {
         /* found a partial slab, locate the first free slot */
-        register int slot = FIRST_FREE_SLOT(sch->partial->slots);
+        register const int slot = FIRST_FREE_SLOT(sch->partial->slots);
         sch->partial->slots ^= SLOTS_FIRST << slot;
 
         if (UNLIKELY(sch->partial->slots == SLOTS_ALL_ZERO)) {
             /* slab has become full, change state from partial to full */
-            struct slab_header *tmp = sch->partial;
+            struct slab_header *const tmp = sch->partial;
 
             /* skip first slab from partial list */
             if (LIKELY((sch->partial = sch->partial->next) != NULL))
@@ -196,12 +193,10 @@ slab_alloc(struct slab_chain *sch)
             sch->partial = mmap(NULL, sch->pages_per_alloc,
                 PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
-            if (UNLIKELY(sch->partial == MAP_FAILED)) {
-                perror("mmap");
-                return sch->partial = NULL;
-            }
+            if (UNLIKELY(sch->partial == MAP_FAILED))
+                return perror("mmap"), sch->partial = NULL;
         } else {
-            int err = posix_memalign((void **) &sch->partial,
+            const int err = posix_memalign((void **) &sch->partial,
                 sch->slabsize, sch->pages_per_alloc);
 
             if (UNLIKELY(err != 0)) {
@@ -213,13 +208,15 @@ slab_alloc(struct slab_chain *sch)
         }
 
         struct slab_header *prev = NULL;
-        char *page_end = (char *) sch->partial + sch->pages_per_alloc;
+
+        const char *const page_end =
+            (char *) sch->partial + sch->pages_per_alloc;
 
         union {
-            char *c;
-            struct slab_header *s;
+            const char *c;
+            struct slab_header *const s;
         } curr = {
-            .c = (char *) sch->partial + sch->slabsize
+            .c = (const char *) sch->partial + sch->slabsize
         };
 
         __builtin_prefetch(sch->partial, 1);
@@ -253,17 +250,16 @@ slab_alloc(struct slab_chain *sch)
     /* unreachable */
 }
 
-void
-slab_free(struct slab_chain *sch, void *addr)
+void slab_free(struct slab_chain *const sch, const void *const addr)
 {
     assert(sch != NULL);
     assert(slab_is_valid(sch));
     assert(addr != NULL);
 
-    struct slab_header *slab = (void *)
+    struct slab_header *const slab = (void *)
         ((uintptr_t) addr & sch->alignment_mask);
 
-    register int slot = ((char *) addr - (char *) slab -
+    register const int slot = ((char *) addr - (char *) slab -
         offsetof(struct slab_header, data)) / sch->itemsize;
 
     if (UNLIKELY(slab->slots == SLOTS_ALL_ZERO)) {
@@ -298,13 +294,13 @@ slab_free(struct slab_chain *sch, void *addr)
                 sch->partial->prev = NULL;
             }
 
-            void *page = UNLIKELY(slab->refcount != 0) ? slab : slab->page;
-            char *page_end = (char *) page + sch->pages_per_alloc;
+            void *const page = UNLIKELY(slab->refcount != 0) ? slab : slab->page;
+            const char *const page_end = (char *) page + sch->pages_per_alloc;
             char found_head = 0;
 
             union {
-                char *c;
-                struct slab_header *s;
+                const char *c;
+                const struct slab_header *const s;
             } s;
 
             for (s.c = page; s.c != page_end; s.c += sch->slabsize) {
@@ -353,46 +349,44 @@ slab_free(struct slab_chain *sch, void *addr)
     }
 }
 
-void
-slab_traverse(struct slab_chain *sch, void (*func)(void *))
+void slab_traverse(const struct slab_chain *const sch, void (*fn)(const void *))
 {
     assert(sch != NULL);
-    assert(func != NULL);
+    assert(fn != NULL);
     assert(slab_is_valid(sch));
 
-    struct slab_header *slab;
-    char *item, *end;
-    size_t data_offset = offsetof(struct slab_header, data);
+    const struct slab_header *slab;
+    const char *item, *end;
+    const size_t data_offset = offsetof(struct slab_header, data);
 
     for (slab = sch->partial; slab; slab = slab->next) {
-        item = (char *) slab + data_offset;
+        item = (const char *) slab + data_offset;
         end = item + sch->itemcount * sch->itemsize;
         uint64_t mask = SLOTS_FIRST;
 
         do {
             if (!(slab->slots & mask))
-                func(item);
+                fn(item);
 
             mask <<= 1;
         } while ((item += sch->itemsize) != end);
     }
 
     for (slab = sch->full; slab; slab = slab->next) {
-        item = (char *) slab + data_offset;
+        item = (const char *) slab + data_offset;
         end = item + sch->itemcount * sch->itemsize;
 
-        do func(item);
+        do fn(item);
         while ((item += sch->itemsize) != end);
     }
 }
 
-void
-slab_destroy(struct slab_chain *sch)
+void slab_destroy(const struct slab_chain *const sch)
 {
     assert(sch != NULL);
     assert(slab_is_valid(sch));
 
-    struct slab_header *heads[] = {sch->partial, sch->empty, sch->full};
+    struct slab_header *const heads[] = {sch->partial, sch->empty, sch->full};
     struct slab_header *pages_head = NULL, *pages_tail;
 
     for (size_t i = 0; i < 3; ++i) {
@@ -400,7 +394,7 @@ slab_destroy(struct slab_chain *sch)
 
         while (slab != NULL) {
             if (slab->refcount != 0) {
-                struct slab_header *page = slab;
+                struct slab_header *const page = slab;
                 slab = slab->next;
 
                 if (UNLIKELY(pages_head == NULL))
@@ -421,7 +415,7 @@ slab_destroy(struct slab_chain *sch)
 
         if (sch->slabsize <= slab_pagesize) {
             do {
-                void *target = page;
+                void *const target = page;
                 page = page->next;
 
                 if (UNLIKELY(munmap(target, sch->pages_per_alloc) == -1))
@@ -429,7 +423,7 @@ slab_destroy(struct slab_chain *sch)
             } while (page != NULL);
         } else {
             do {
-                void *target = page;
+                void *const target = page;
                 page = page->next;
                 free(target);
             } while (page != NULL);
@@ -437,18 +431,19 @@ slab_destroy(struct slab_chain *sch)
     }
 }
 
-void
-slab_dump(FILE *out, struct slab_chain *sch)
+static void slab_dump(FILE *const out, const struct slab_chain *const sch)
 {
     assert(out != NULL);
     assert(sch != NULL);
     assert(slab_is_valid(sch));
 
-    struct slab_header *heads[] = {sch->partial, sch->empty, sch->full};
+    const struct slab_header *const heads[] =
+        {sch->partial, sch->empty, sch->full};
+
     const char *labels[] = {"part", "empt", "full"};
 
     for (size_t i = 0; i < 3; ++i) {
-        struct slab_header *slab = heads[i];
+        const struct slab_header *slab = heads[i];
 
         fprintf(out,
             YELLOW("%6s ") GRAY("|%2d%13s|%2d%13s|%2d%13s|%2d%13s") "\n",
@@ -457,7 +452,7 @@ slab_dump(FILE *out, struct slab_chain *sch)
         unsigned long long total = 0, row;
 
         for (row = 1; slab != NULL; slab = slab->next, ++row) {
-            unsigned used = sch->itemcount - FREE_SLOTS(slab->slots);
+            const unsigned used = sch->itemcount - FREE_SLOTS(slab->slots);
             fprintf(out, GRAY("%6llu "), row);
 
             for (int k = 63; k >= 0; --k) {
@@ -475,8 +470,7 @@ slab_dump(FILE *out, struct slab_chain *sch)
     }
 }
 
-void
-slab_stats(FILE *out, struct slab_chain *sch)
+static void slab_stats(FILE *const out, const struct slab_chain *const sch)
 {
     assert(out != NULL);
     assert(sch != NULL);
@@ -489,19 +483,17 @@ slab_stats(FILE *out, struct slab_chain *sch)
 
     float occupancy;
 
-    struct slab_header *heads[] = {sch->partial, sch->empty, sch->full};
+    const struct slab_header *const heads[] =
+        {sch->partial, sch->empty, sch->full};
+
     const char *labels[] = {"Partial", "Empty", "Full"};
 
     fprintf(out, "%8s %17s %17s %17s %17s\n", "",
         "Slabs", "Used", "Free", "Occupancy");
 
     for (size_t i = 0; i < 3; ++i) {
-        long long unsigned
-            nr_slabs = 0,
-            used_slots = 0,
-            free_slots = 0;
-
-        struct slab_header *slab;
+        long long unsigned nr_slabs = 0, used_slots = 0, free_slots = 0;
+        const struct slab_header *slab;
 
         for (slab = heads[i]; slab != NULL; slab = slab->next) {
             nr_slabs++;
@@ -528,8 +520,7 @@ slab_stats(FILE *out, struct slab_chain *sch)
         total_nr_slabs, total_used_slots, total_free_slots, occupancy);
 }
 
-void
-slab_dump_properties(FILE *out, struct slab_chain *sch)
+static void slab_props(FILE *const out, const struct slab_chain *const sch)
 {
     assert(out != NULL);
     assert(sch != NULL);
@@ -574,7 +565,7 @@ double *allocs[16 * 60];
 
 #define SLAB_DUMP { \
     puts("\033c"); \
-    slab_dump_properties(stdout, &s); \
+    slab_props(stdout, &s); \
     puts(""); \
     slab_stats(stdout, &s); \
     puts(""); \
@@ -583,20 +574,17 @@ double *allocs[16 * 60];
     usleep(4 * 50000); \
 }
 
-void
-fn (void *item)
+__attribute__((unused)) static void fn (const void *item)
 {
     printf("func %.3f\n", *((double *) item));
 }
 
-int
-main(void)
+int main(void)
 {
     setvbuf(stdout, NULL, _IOFBF, 0xFFFF);
 
     slab_pagesize = (size_t) sysconf(_SC_PAGESIZE);
-    slab_pagesize = 4096;
-    slab_init(&s, 8);
+    slab_init(&s, sizeof(double));
 
     for (ssize_t i = 0; i < sizeof(allocs) / sizeof(*allocs); i++) {
         allocs[i] = slab_alloc(&s);

@@ -7,6 +7,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 extern size_t slab_pagesize;
 
@@ -28,6 +29,6 @@ struct slab_chain {
 
 void slab_init(struct slab_chain *, size_t);
 void *slab_alloc(struct slab_chain *);
-void slab_free(struct slab_chain *, void *);
-void slab_traverse(struct slab_chain *, void (*)(void *));
-void slab_destroy(struct slab_chain *);
+void slab_free(struct slab_chain *, const void *);
+void slab_traverse(const struct slab_chain *, void (*)(const void *));
+void slab_destroy(const struct slab_chain *);
