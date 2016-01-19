@@ -1,5 +1,7 @@
 /* ref: https://github.com/bbu/userland-slab-allocator */
 
+#include "slab.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -8,8 +10,6 @@
 #include <sys/mman.h>
 #include <math.h>
 #include <assert.h>
-
-#include "slab.h"
 
 #define SLAB_DUMP_COLOURED
 
@@ -25,8 +25,8 @@
 # define YELLOW(s) s
 #endif
 
-#define SLOTS_ALL_ZERO ((uint64_t) 0ull)
-#define SLOTS_FIRST ((uint64_t) 1ull)
+#define SLOTS_ALL_ZERO ((uint64_t) 0)
+#define SLOTS_FIRST ((uint64_t) 1)
 #define FIRST_FREE_SLOT(s) __builtin_ctzll(s)
 #define FREE_SLOTS(s) __builtin_popcountll(s)
 #define ONE_USED_SLOT(slots, empty_slotmask) \
@@ -457,7 +457,7 @@ static void slab_dump(FILE *const out, const struct slab_chain *const sch)
 
             for (int k = 63; k >= 0; --k) {
                 fprintf(out, slab->slots & (SLOTS_FIRST << k) ? GREEN("1") :
-                    (k >= sch->itemcount ? GRAY("0") : RED("0")));
+                    ((size_t) k >= sch->itemcount ? GRAY("0") : RED("0")));
             }
 
             fprintf(out, RED(" %8u") "\n", used);
@@ -571,7 +571,7 @@ double *allocs[16 * 60];
     puts(""); \
     slab_dump(stdout, &s); \
     fflush(stdout); \
-    usleep(4 * 50000); \
+    usleep(100000); \
 }
 
 __attribute__((unused)) static void fn (const void *item)
@@ -586,7 +586,7 @@ int main(void)
     slab_pagesize = (size_t) sysconf(_SC_PAGESIZE);
     slab_init(&s, sizeof(double));
 
-    for (ssize_t i = 0; i < sizeof(allocs) / sizeof(*allocs); i++) {
+    for (size_t i = 0; i < sizeof(allocs) / sizeof(*allocs); i++) {
         allocs[i] = slab_alloc(&s);
         assert(allocs[i] != NULL);
         *allocs[i] = i * 4;
