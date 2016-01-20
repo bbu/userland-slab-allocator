@@ -27,8 +27,8 @@
 
 #define SLOTS_ALL_ZERO ((uint64_t) 0)
 #define SLOTS_FIRST ((uint64_t) 1)
-#define FIRST_FREE_SLOT(s) __builtin_ctzll(s)
-#define FREE_SLOTS(s) __builtin_popcountll(s)
+#define FIRST_FREE_SLOT(s) ((size_t) __builtin_ctzll(s))
+#define FREE_SLOTS(s) ((size_t) __builtin_popcountll(s))
 #define ONE_USED_SLOT(slots, empty_slotmask) \
     ( \
         ( \
@@ -155,7 +155,7 @@ void *slab_alloc(struct slab_chain *const sch)
 
     if (LIKELY(sch->partial != NULL)) {
         /* found a partial slab, locate the first free slot */
-        register const int slot = FIRST_FREE_SLOT(sch->partial->slots);
+        register const size_t slot = FIRST_FREE_SLOT(sch->partial->slots);
         sch->partial->slots ^= SLOTS_FIRST << slot;
 
         if (UNLIKELY(sch->partial->slots == SLOTS_ALL_ZERO)) {
